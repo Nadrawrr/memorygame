@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memory Game</title>
+    <style>
+        /* CSS untuk styling game */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px;
+        }
+        .card {
+            width: 100px;
+            height: 100px;
+            background-color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            font-size: 20px; /* Ukuran font */
+        }
+        .hidden {
+            visibility: hidden;
+        }
+        .flipped {
+            background-color: #ffd700; /* Warna saat kartu terbuka */
+        }
+    </style>
+</head>
+<body>
+    <h1>Memory Game</h1>
+    <div id="game-board"></div>
+    <div>Poin: <span id="points">0</span></div>
+    <div>Waktu tersisa: <span id="time-left">2:00</span></div>
+    <input type="color" id="bg-color" />
+
+    <canvas id="confetti-canvas"></canvas>
+
+    <script>
+        // JavaScript untuk logika permainan
+        const gameBoard = document.getElementById('game-board');
+        const timeLeftDisplay = document.getElementById('time-left');
+        const pointsDisplay = document.getElementById('points');
+
+        let timer;
+        let timeLeft = 120; // 2 menit
+        let points = 0;
+        let timerStarted = false;
+
+        // Data kartu
+        const cards = [
+            { name: 'Bung Tomo', match: 'Tokoh Pertempuran Surabaya?' },
+            { name: '1945-1949', match: 'Puncak perjuangan bangsa ada pada tahun?' },
+            { name: 'Deklarasi kemerdekaan dilakukan di?', match: 'Jakarta' },
+            { name: '2 perjanjian diplomasi yang terjadi?', match: 'Perjanjian Linggarjati dan Perjanjian Renville' },
+            { name: 'Konferensi Meja Bundar terjadi di?', match: 'Den Haag' },
+            { name: 'Pemimpin pasukan gerilya melawan Belanda adalah?', match: 'Jenderal Soedirman' },
+            { name: 'Kapan berakhirnya revolusi Indonesia?', match: '27 Desember 1949' },
+            { name: 'Beberapa penyebab revolusi Indonesia?', match: 'Kolonialisme Belanda, Krisis Ekonomi, dan Pengaruh Global' },
+            { name: 'Siapa proklamator kemerdekaan RI?', match: 'Ir. Soekarno' },
+            { name: 'Partai-partai pelopor revolusi Indonesia?', match: 'Budi Utomo, Sarekat Islam, dan Partai Nasional Indonesia' }
+        ];
+
+        // Gandakan kartu untuk membuat pasangan
+        let cardData = [...cards, ...cards]; // Menjadi 20 kartu
+
+        // Acak posisi kartu
+        cardData = shuffle(cardData);
+
+        // Buat kartu
+        cardData.forEach(cardItem => {
+            const card = document.createElement('div');
+            card.classList.add('card');
+            card.dataset.name = cardItem.name;
+            card.dataset.match = cardItem.match;
+
+            card.innerHTML = `
+                <div class="card-inner">
+                    <div class="card-front"></div>
+                    <div class="card-back">${cardItem.name}</div>
+                </div>
+            `;
+            gameBoard.appendChild(card);
+        });
+
+        // Fungsi untuk mengacak array
+        function shuffle(array) {
+            let currentIndex = array.length, randomIndex;
+
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+
+            return array;
+        }
+
+        // Variabel untuk melacak status permainan
+        let hasFlippedCard = false;
+        let firstCard, secondCard;
+        let lockBoard = false;
+
+        // Event Listener untuk klik kartu
+        gameBoard.addEventListener('click', function(e) {
+            const clickedCard = e.target.closest('.card');
+            if (!clickedCard || lockBoard || clickedCard.classList.contains('flipped')) return;
+
+            if (!timerStarted) {
+                startTimer();
+                timerStarted = true;
+            }
+
+            clickedCard.classList.add('flipped');
+
+            if (!hasFlippedCard) {
+                hasFlippedCard = true;
+                firstCard = clickedCard;
+            } else {
+                secondCard = clickedCard;
+                lockBoard = true;
+
+                checkForMatch();
+            }
+        });
+
+        // Fungsi cek apakah kartu cocok
+        function checkForMatch() {
+            let isMatch = firstCard.dataset.match === secondCard.dataset.name;
+            if (isMatch) {
+                disableCards();
+                addPoints(10);
+                launchConfetti();
+                checkWinCondition();
+            } else {
+                unflipCards();
+            }
+        }
+
+        // Fungsi untuk sembunyikan kartu yang cocok
+        function disableCards() {
+            setTimeout(() => {
+                firstCard.classList.add('hidden');
+                secondCard.classList.add('hidden');
+                resetBoard();
+            }, 1000);
+        }
+
+        // Fungsi untuk membalik kembali kartu yang tidak cocok
+        function unflipCards() {
+            setTimeout(() => {
+                firstCard.classList.remove('flipped');
+                secondCard.classList.remove('flipped');
+                resetBoard();
+            }, 1000);
+        }
+
+        // Reset variabel setelah percobaan selesai
+        function resetBoard() {
+            [hasFlippedCard, lockBoard] = [false, false];
+            [firstCard, secondCard] = [null, null];
+        }
+
+        // Fungsi untuk menambah poin
+        function addPoints(num) {
+            points += num;
+            pointsDisplay.textContent = points;
+        }
+
+        // Fungsi untuk cek kondisi menang (poin 100)
+        function checkWinCondition() {
+            if (points >= 100) {
+                setTimeout(() => {
+                    alert('Terima kasih yaaw-!!');
+                    resetGame();
+                }, 500);
+            }
+        }
+
+        // Fungsi untuk memulai timer
+        function startTimer() {
+            timer = setInterval(() => {
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    alert('Waktu habis! Permainan akan direset.');
+                    resetGame();
+                } else {
+                    let minutes = Math.floor(timeLeft / 60);
+                    let seconds = timeLeft % 60;
+                    timeLeftDisplay.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                    timeLeft--;
+                }
+            }, 1000);
+        }
+
+        // Fungsi untuk mereset permainan
+        function resetGame() {
+            clearInterval(timer);
+            location.reload();
+        }
+
+        // Mengubah warna background
+        document.getElementById('bg-color').addEventListener('input', function() {
+            document.body.style.backgroundColor = this.value;
+        });
+    </script>
+</body>
+</html>
